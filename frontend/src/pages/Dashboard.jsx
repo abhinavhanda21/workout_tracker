@@ -6,14 +6,19 @@ function Dashboard({ user }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
+  // API base: read from REACT_APP_API_URL at build time, fallback to your Render URL
+  const API_BASE = process.env.REACT_APP_API_URL || 'https://workout-tracker-hk00.onrender.com';
+
   useEffect(() => {
     fetchWorkouts();
   }, []);
 
   const fetchWorkouts = async () => {
     try {
-      const response = await workoutAPI.getAll();
-      setWorkouts(response.data);
+      const res = await fetch(`${API_BASE}/api/workouts`);
+      if (!res.ok) throw new Error('Network response was not ok');
+      const data = await res.json();
+      setWorkouts(data);
     } catch (err) {
       setError('Failed to load workouts');
     } finally {
@@ -22,13 +27,20 @@ function Dashboard({ user }) {
   };
 
   const handleDelete = async (id) => {
-    if (window.confirm('Are you sure you want to delete this workout?')) {
-      try {
-        await workoutAPI.delete(id);
-        setWorkouts(workouts.filter(w => w.id !== id));
-      } catch (err) {
-        alert('Failed to delete workout');
+    if (!window.confirm('Are you sure you want to delete this workout?')) return;
+
+    // optimistic update + backend request
+    const prev = workouts;
+    setWorkouts(workouts.filter(w => w.id !== id));
+    try {
+      const res = await fetch(`${API_BASE}/api/workouts/${id}`, { method: 'DELETE' });
+      if (!res.ok) {
+        setWorkouts(prev);
+        throw new Error('Delete failed');
       }
+    } catch (err) {
+      alert('Failed to delete workout');
+      setWorkouts(prev);
     }
   };
 
